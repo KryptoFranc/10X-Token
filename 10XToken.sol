@@ -230,7 +230,7 @@ contract THEWOLF10XToken is TokenBase{
     string public constant name = "10X Game"; // contract name
     string public constant symbol = "10X"; // symbol name
     uint256 public constant decimals = 18; // standard size
-    string public constant version="1.2";
+    string public constant version="1.3";
 
     bool public isfundingGoalReached;
     bool public isGameOn; 
@@ -268,7 +268,6 @@ contract THEWOLF10XToken is TokenBase{
     event LogMsg(address indexed _from, string Msg);
     event FundingReached(address beneficiary, uint fundingRaised);
     event GameOnOff(bool state);
-    event Burn(address indexed from, uint256 value);
     event GoalReached(address owner, uint256 goal);
     event SwitchingToFundingMode(uint totalETHSupply, uint fundingCurrent); 
     
@@ -439,6 +438,7 @@ contract THEWOLF10XToken is TokenBase{
             }else{
                 // case 3, we have reached the max cap, we cannot deliver any tokens anymore.
                 isGameOn=true; // we switch in game mode, since there is no reason to raise any money. End of the crowdsale
+                GameOnOff(isGameOn);
                 LogMsg(msg.sender, "Max Cap reached, switching to game mode. End of the Crowdsale"); 
             }
             // here if we are still in crowdsale mode
@@ -530,6 +530,7 @@ contract THEWOLF10XToken is TokenBase{
                 GoalReached(owner, totalETHSupply); // shoot an event to log it
             }
             isGameOn = true; // crowdsale is closed, let's play the game.
+            GameOnOff(isGameOn);
         }else{ isGameOn=false;} // still in crowdfunding mode, let's continue in this mode
         if (totalTokenSupply >= tokenCreationCap) {
             isMaxCapReached=true;
@@ -546,6 +547,7 @@ contract THEWOLF10XToken is TokenBase{
                 GoalReached(owner, totalETHSupply); // shoot an event to log it
             }
             isGameOn = true; // crowdsale is closed, let's play the game.
+            GameOnOff(isGameOn);
         }else{ isGameOn=false;}
         
         if (totalTokenSupply >= tokenCreationCap) {
@@ -596,12 +598,14 @@ contract THEWOLF10XToken is TokenBase{
     function switchToGame(string _password) external  onlyOwner protected(_password) {
       require(!isGameOn); // re-entrance check
       isGameOn = true; // start the game
+      GameOnOff(isGameOn);
     }
     
     // Is an expeditive way to switch from game mode to crowdsale
     function switchToCrowdsale(string _password) external  onlyOwner protected(_password) {
       require(isGameOn); // re-entrance check
       isGameOn = false; // start the game
+      GameOnOff(isGameOn);
     }    
     
     // random number (miner proof)
@@ -721,6 +725,7 @@ contract THEWOLF10XToken is TokenBase{
     // change the current crowdsale price
     function setGameStatus(bool _value,string _password )  onlyOwner external protected(_password) {
         isGameOn=_value;
+        GameOnOff(isGameOn);
     } 
         
     // get the status of the game true= game / false = ICO
