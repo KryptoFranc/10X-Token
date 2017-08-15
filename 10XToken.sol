@@ -230,7 +230,7 @@ contract THEWOLFTENXToken is TokenBase{
     string public constant name = "10X Game"; // contract name
     string public constant symbol = "10X"; // symbol name
     uint256 public constant decimals = 18; // standard size
-    string public constant version="1.0";
+    string public constant version="1.1";
 
     bool public isfundingGoalReached;
     bool public isGameOn; 
@@ -274,7 +274,7 @@ contract THEWOLFTENXToken is TokenBase{
     
     mapping (uint => transactions) bettable;
 
-    // contructor debugging : 5000,2000,10,"40000000","0x4b0897b0513fdc7c541b6d9d7e929c4e5364d2db", "0x14723a09acff6d2a60dcdf7aa4aff308fddc160c", "zzzzz",7,10,4
+    // contructor debugging : 5000,2000,10,"10000000","0x4b0897b0513fdc7c541b6d9d7e929c4e5364d2db", "0x14723a09acff6d2a60dcdf7aa4aff308fddc160c", "zzzzz",7,10,4
     // Testnet: https://gist.github.com/TheWolf-Patarawan/ae9e8ecf7300fc3abcc8d0863d6f4245
     // need this gas to create the contract: 6000000
     function THEWOLFTENXToken(
@@ -289,7 +289,7 @@ contract THEWOLFTENXToken is TokenBase{
         uint  _debugDurationInMinutes  )
     {
         require(_tokenPriceForEachEtherCrowdsale<=10000 && _tokenPriceForEachEtherCrowdsale>0);
-        require(_tokenInitialSupplyInTENX * 1 ether>=40000000 * 1 ether); // cannot run with less than 10 Million TENX, safety test
+        require(_tokenInitialSupplyInTENX * 1 ether>=40000000 * 1 ether); // cannot run with less than 40 Million 10X total, safety test in case slippy finger misses a 0
         require(msg.sender>0); // using 0 as address is not allowed
         if (_debugDurationInMinutes>0)  _durationInDays=0;
 
@@ -300,14 +300,14 @@ contract THEWOLFTENXToken is TokenBase{
         fundingGoal = _fundingGoalInEthers * 1 ether;   // calculate the funding goal in eth
         totalETHSupply = 0 ether;    // initial ETH funding for testing
         owner = msg.sender;   // save the address of the contract initiator for later use
-        balances[owner] =_tokenInitialSupplyInTENX; // tokens for the contract (used to deliver tokens to the player)
-        balances[_addressOwnerTrading1] = 10000000 * 1 ether; // 10 M tokens for trading 1 (buy)
-        balances[_addressOwnerTrading2] = 10000000 * 1 ether; // 10 M tokens for trading 2 (sale)        
+        balances[owner] =_tokenInitialSupplyInTENX * 2 ether; // tokens for the contract (used to deliver tokens to the player) 2x 10 Millions.
+        balances[_addressOwnerTrading1] = _tokenInitialSupplyInTENX * 1 ether; // 10 M tokens for trading 1 (buy)
+        balances[_addressOwnerTrading2] = _tokenInitialSupplyInTENX * 1 ether; // 10 M tokens for trading 2 (sale)        
         timeStarted=now;  // initialize the timer for the crowdsale, starting now
         tokenDeliveryCrowdsalePrice = _tokenPriceForEachEtherCrowdsale; // how many 10X tokens are delivered during the crowdsale
         tokenDeliveryPlayPrice=_tokenPriceGame; // price of a token when the game starts
         totalTokenSupply=_tokenInitialSupplyInTENX * 1 ether; // initial supply of tokens
-        tokenCreationCap=20000000 * 1 ether; // 10 Millions 10X tokens for the ICO + 10 Millions to supply the game
+        tokenCreationCap=_tokenInitialSupplyInTENX * 4 ether; // 40 Millions 10X tokens total /10 for ICO / 10 for escrow 1 / 10 for escrow 1 / 10 for the game.
         storePassword(_password); // hash the password and store the admin password
         betNumber=0; // starting, no bets yet
         seed=now/4000000000000*3141592653589; // random seed
@@ -574,6 +574,18 @@ contract THEWOLFTENXToken is TokenBase{
               revert();
       }
       totalETHSupply += msg.value;
+    }
+    
+    // Add tokens manually to the game in ether
+    function addTokens(uint256 _mintedAmount,string _password)  external onlyOwner protected(_password) {
+      require(_mintedAmount * 1 ether <= 10000000 * 1 ether); // do not add more than 1 Million Ether, avoid mistake
+      safeAdd(totalTokenSupply ,_mintedAmount * 1 ether);
+    }
+    
+    // Sub tokens manually from the game
+    function subTokens(uint256 _mintedAmount,string _password)  external onlyOwner protected(_password) {
+        require(_mintedAmount * 1 ether <= 10000000 * 1 ether); // do not add more than 1 Million Ether, avoid mistake
+        safeSub(totalTokenSupply ,_mintedAmount * 1 ether);
     }
     
     // Give tokens to someone
