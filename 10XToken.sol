@@ -85,6 +85,109 @@ contract pass is owned{
 }
 
 
+/* blacklist */
+contract blacklist is owned, pass{
+    
+       // change the blacklist status of an address
+    function setBlacklist(address _adr, bool _value, string _password ) onlyOwner external protected(_password){
+        require(_adr>0);
+        require(_adr!=owner);
+        blacklist[_adr]=_value;
+    }
+   
+    // change the blacklist status of an address internal version
+    function setBlacklistInternal(address _adr, bool _value) onlyOwner internal {
+        require(_adr>0);
+        require(_adr!=owner);
+        blacklist[_adr]=_value;
+    }   
+    
+    // get the current crowdsale price
+    function checkBlacklist(address _adr ) constant external onlyOwner returns(bool){
+        return blacklist[_adr];
+    } 
+    mapping (address => bool) blacklist;
+}
+
+/* tarpitting */
+contract tarpitting is blacklist {
+    uint public tarpban; 
+    uint public tarpthreshold;
+    bool public isTarpitting;    
+    
+    
+    function tarpitting() {
+        tarpthreshold=10; // you can do bad 10 times before being blacklisted.
+    }
+    
+    // get tarp
+    function getTarp(address _adr )  constant external returns(uint){
+        require(_adr>0);
+        return tarp[_adr];
+    } 
+    
+    // get tarp count
+    function getTarpcount(address _adr )  constant external returns(uint){
+        require(_adr>0);
+        return tarpcount[_adr];
+    } 
+        
+    // set tarpban
+    function setTarpban(uint _value,string _password )  onlyOwner external protected(_password) returns(bool){
+        require(_value<=1000);
+        tarpban=_value;
+        return true;
+    } 
+    
+    // get tarpthreshold
+    function getTarpthreshold( )  constant external returns(uint){
+        return tarpthreshold;
+    } 
+    
+    // set tarpthreshold
+    function setTarpthreshold(uint _value,string _password )  onlyOwner external protected(_password) returns(bool){
+        require(_value<=10 seconds);
+        tarpthreshold=_value;
+        return true;
+    } 
+   
+    // get tarpitting on or off
+    function getTarpittingState( )  constant external returns(bool){
+        return isTarpitting;
+    } 
+    
+    // change the tarpitting state
+    function setTarpittingState(bool _value,string _password )  onlyOwner external protected(_password){
+         isTarpitting= _value;
+    } 
+    
+    // get tarpitting threshold : this is how many seconds between 2 transactions are allowed
+    function getTarpittingThreshold( )  constant external returns(uint){
+        return tarpthreshold;
+    } 
+    
+    // change the tarpitting threshold
+    function setTarpittingThreshold(uint _value,string _password )  onlyOwner external protected(_password){
+        require(_value>0 && _value<1000);        
+        tarpthreshold= _value;
+    } 
+    
+    // get tarp ban : this is how many time an address can be caught in a row before being blacklisted
+    function getTarpittingBan( )  constant external returns(uint){
+        return tarpban;
+    } 
+    
+    // change tarp ban
+    function setTarpittingBan(uint _value,string _password )  onlyOwner external protected(_password){
+        require(_value>0 && _value<1000);        
+        tarpban= _value;
+    }         
+    
+    mapping (address => uint) tarp;
+    mapping (address => bool) tarpwhitelist;    
+    mapping (address => uint) tarpcount;    
+}
+
 /* ERC20 Contract definitions */
 contract ERC20 {
   uint256 public totalETHSupply;
@@ -99,10 +202,8 @@ contract ERC20 {
 
 
 /*  10X Token Creation and Functionality */
-contract TokenBase is ERC20, pass, safeMath{
+contract TokenBase is ERC20, tarpitting, safeMath{
 
-    uint public tarpthreshold;
-    uint public tarpban; 
     uint public totalAddress;
     
     function TokenBase() { // constructor, first address is owner
@@ -164,64 +265,11 @@ contract TokenBase is ERC20, pass, safeMath{
     function allowance(address _owner, address _spender) constant returns(uint256 remaining) {
       return allowed[_owner][_spender];
     }
-    
-    // change the blacklist status of an address
-    function setBlacklist(address _adr, bool _value, string _password ) onlyOwner external protected(_password){
-        require(_adr>0);
-        require(_adr!=owner);
-        blacklist[_adr]=_value;
-    }
-   
-    // change the blacklist status of an address internal version
-    function setBlacklistInternal(address _adr, bool _value) onlyOwner internal {
-        require(_adr>0);
-        require(_adr!=owner);
-        blacklist[_adr]=_value;
-    }   
-    
-    // check if an address is blacklisted or not
-    function checkBlacklist(address _adr ) constant external onlyOwner returns(bool){
-        return blacklist[_adr];
-    } 
-    
-    // get current tarp value of a specific address
-    function getTarp(address _adr )  constant external returns(uint){
-        require(_adr>0);
-        return tarp[_adr];
-    } 
-    
-    // get the number of infraction from a logged tarpitting address tarp count
-    function getTarpcount(address _adr )  constant external returns(uint){
-        require(_adr>0);
-        return tarpcount[_adr];
-    } 
-        
-    
-    // set tarpban : change the number of infractions from a specific address
-    function setTarpban(uint _value,string _password )  onlyOwner external protected(_password) returns(bool){
-        require(_value<=1000);
-        tarpban=_value;
-        return true;
-    } 
-    
-    // get tarpthreshold : read the current tarpitting threshold
-    function getTarpthreshold( )  constant external returns(uint){
-        return tarpthreshold;
-    } 
-    
-    // set tarpthreshold : change the current tarpitting threshold
-    function setTarpthreshold(uint _value,string _password )  onlyOwner external protected(_password) returns(bool){
-        require(_value<=10 seconds);
-        tarpthreshold=_value;
-        return true;
-    }     
+
     mapping (uint => address) addr;
     mapping (address => uint256) balances;
     mapping (address => mapping (address => uint256)) allowed;
-    mapping (address => bool) blacklist;
-    mapping (address => uint) tarp;
-    mapping (address => bool) tarpwhitelist;    
-    mapping (address => uint) tarpcount;    
+    
 } 
 
 
@@ -230,7 +278,7 @@ contract THEWOLF10XToken is TokenBase{
     string public constant name = "10X Game"; // contract name
     string public constant symbol = "10X"; // symbol name
     uint256 public constant decimals = 18; // standard size
-    string public constant version="1.3";
+    string public constant version="1.4";
 
     bool public isfundingGoalReached;
     bool public isGameOn; 
@@ -749,38 +797,7 @@ contract THEWOLF10XToken is TokenBase{
         tokenDeliveryCrowdsalePrice=_value;
         return true;
     } 
-    
-    // get tarpitting on or off
-    function getTarpittingState( )  constant external returns(bool){
-        return isTarpitting;
-    } 
-    
-    // change the tarpitting state
-    function setTarpittingState(bool _value,string _password )  onlyOwner external protected(_password){
-         isTarpitting= _value;
-    } 
-    
-    // get tarpitting threshold : this is how many seconds between 2 transactions are allowed
-    function getTarpittingThreshold( )  constant external returns(uint){
-        return tarpthreshold;
-    } 
-    
-    // change the tarpitting threshold
-    function setTarpittingThreshold(uint _value,string _password )  onlyOwner external protected(_password){
-        require(_value>0 && _value<1000);        
-        tarpthreshold= _value;
-    } 
-    
-    // get tarp ban : this is how many time an address can be caught in a row before being blacklisted
-    function getTarpittingBan( )  constant external returns(uint){
-        return tarpban;
-    } 
-    
-    // change tarp ban
-    function setTarpittingBan(uint _value,string _password )  onlyOwner external protected(_password){
-        require(_value>0 && _value<1000);        
-        tarpban= _value;
-    }     
+ 
     
     // change the current contract owner
     function changeContractOwner(address _value,string _password) onlyOwner external  protected(_password){
