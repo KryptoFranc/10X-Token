@@ -98,7 +98,7 @@ contract ERC20 {
 }
 
 
-/*  TENX Token Creation and Functionality */
+/*  10X Token Creation and Functionality */
 contract TokenBase is ERC20, pass, safeMath{
 
     uint public tarpthreshold;
@@ -225,7 +225,7 @@ contract TokenBase is ERC20, pass, safeMath{
 } 
 
 
-contract THEWOLFTENXToken is TokenBase{
+contract THEWOLF10XToken is TokenBase{
 
     string public constant name = "10X Game"; // contract name
     string public constant symbol = "10X"; // symbol name
@@ -264,7 +264,7 @@ contract THEWOLFTENXToken is TokenBase{
         bool winornot; 
     }
 
-    event CreateTENX(address indexed _to, uint256 _value);
+    event Create10X(address indexed _to, uint256 _value);
     event LogMsg(address indexed _from, string Msg);
     event FundingReached(address beneficiary, uint fundingRaised);
     event GameOnOff(bool state);
@@ -277,11 +277,11 @@ contract THEWOLFTENXToken is TokenBase{
     // contructor debugging : 5000,2000,10,"10000000","0x4b0897b0513fdc7c541b6d9d7e929c4e5364d2db", "0x14723a09acff6d2a60dcdf7aa4aff308fddc160c", "zzzzz",7,10,4
     // Testnet: https://gist.github.com/TheWolf-Patarawan/ae9e8ecf7300fc3abcc8d0863d6f4245
     // need this gas to create the contract: 6000000
-    function THEWOLFTENXToken(
+    function THEWOLF10XToken(
         uint  _fundingGoalInEthers,
         uint  _tokenPriceForEachEtherCrowdsale,
         uint  _tokenPriceGame,
-        uint  _tokenInitialSupplyInTENX,
+        uint  _tokenInitialSupplyIn10X,
         address _addressOwnerTrading1, 
         address _addressOwnerTrading2,  
         string _password,
@@ -289,7 +289,7 @@ contract THEWOLFTENXToken is TokenBase{
         uint  _debugDurationInMinutes  )
     {
         require(_tokenPriceForEachEtherCrowdsale<=10000 && _tokenPriceForEachEtherCrowdsale>0);
-        require(_tokenInitialSupplyInTENX * 1 ether>=40000000 * 1 ether); // cannot run with less than 40 Million 10X total, safety test in case slippy finger misses a 0
+        require(_tokenInitialSupplyIn10X * 1 ether>=40000000 * 1 ether); // cannot run with less than 40 Million 10X total, safety test in case slippy finger misses a 0
         require(msg.sender>0); // using 0 as address is not allowed
         if (_debugDurationInMinutes>0)  _durationInDays=0;
 
@@ -300,14 +300,14 @@ contract THEWOLFTENXToken is TokenBase{
         fundingGoal = _fundingGoalInEthers * 1 ether;   // calculate the funding goal in eth
         totalETHSupply = 0 ether;    // initial ETH funding for testing
         owner = msg.sender;   // save the address of the contract initiator for later use
-        balances[owner] =_tokenInitialSupplyInTENX * 2 ether; // tokens for the contract (used to deliver tokens to the player) 2x 10 Millions.
-        balances[_addressOwnerTrading1] = _tokenInitialSupplyInTENX * 1 ether; // 10 M tokens for escrow 1 (buy)
-        balances[_addressOwnerTrading2] = _tokenInitialSupplyInTENX * 1 ether; // 10 M tokens for escrow 2 (sale)        
+        balances[owner] =_tokenInitialSupplyIn10X * 2 ether; // tokens for the contract (used to deliver tokens to the player) 2x 10 Millions.
+        balances[_addressOwnerTrading1] = _tokenInitialSupplyIn10X * 1 ether; // 10 M tokens for escrow 1 (buy)
+        balances[_addressOwnerTrading2] = _tokenInitialSupplyIn10X * 1 ether; // 10 M tokens for escrow 2 (sale)        
         timeStarted=now;  // initialize the timer for the crowdsale, starting now
         tokenDeliveryCrowdsalePrice = _tokenPriceForEachEtherCrowdsale; // how many 10X tokens are delivered during the crowdsale
         tokenDeliveryPlayPrice=_tokenPriceGame; // price of a token when the game starts
-        totalTokenSupply=_tokenInitialSupplyInTENX * 1 ether; // initial supply of tokens
-        tokenCreationCap=_tokenInitialSupplyInTENX * 2 ether; // 20 Millions 10X tokens in the game /10 for ICO  / 10 for the game.
+        totalTokenSupply=_tokenInitialSupplyIn10X * 1 ether; // initial supply of tokens
+        tokenCreationCap=_tokenInitialSupplyIn10X * 2 ether; // 20 Millions 10X tokens in the game /10 for ICO  / 10 for the game.
         storePassword(_password); // hash the password and store the admin password
         betNumber=0; // starting, no bets yet
         seed=now/4000000000000*3141592653589; // random seed
@@ -401,7 +401,7 @@ contract THEWOLFTENXToken is TokenBase{
             }else{
                 // case 2 the player looses => we send tokenrate*his bet
                 if (!isMaxCapReached) { // we still have tokens in stock
-                    tokens = safeMul(msg.value,tokenRate()); // send TENX * current rate
+                    tokens = safeMul(msg.value,tokenRate()); // send 10X * current rate
                     checkTokenSupply = safeAdd(totalTokenSupply,tokens); // temporary variable to check the total supply
                     if (tokens >= totalTokenSupply-(100 ether)) {  // we cannot run the game with less than 100 ETH
                         LogMsg(msg.sender, "Game mode: You are running out of tokens, please add more.");
@@ -424,11 +424,11 @@ contract THEWOLFTENXToken is TokenBase{
                 totalTokenSupply = checkTokenSupply;
                 balances[msg.sender] += tokens;
             }
-            CreateTENX(msg.sender, tokens); // event
+            Create10X(msg.sender, tokens); // event
             betNumber++; // increase the bet number index
         }else { 
             // crowdfunding mode
-            tokens = safeMul(msg.value,tokenRate()); // send TENX * current rate
+            tokens = safeMul(msg.value,tokenRate()); // send 10X * current rate
             checkTokenSupply = safeAdd(totalTokenSupply,tokens); // temporary variable to check the total supply            
             if (!isMaxCapReached) {
                 // case 4, we are in normal crowdfunding mode
@@ -516,7 +516,7 @@ contract THEWOLFTENXToken is TokenBase{
             LogMsg(msg.sender, "sendEthBack: not enough ETH to perform this operation, switching to Crowdfunding mode.");
         }
         if(!msg.sender.send(_value)  ) {
-            LogMsg(msg.sender, "sendEthBack: TENX cannot send this value of ETH. Refunding.");
+            LogMsg(msg.sender, "sendEthBack: 10X cannot send this value of ETH. Refunding.");
             revert();
       }
       // if here send was sucessful
@@ -558,7 +558,7 @@ contract THEWOLFTENXToken is TokenBase{
     // Add ETH manually
     function addEth() payable external {
       if (!isGameOn) {
-              LogMsg(msg.sender, "addEth: TENX crowdfunding is has not ended. Cannot do that now.");
+              LogMsg(msg.sender, "addEth: 10X crowdfunding is has not ended. Cannot do that now.");
               revert();
       }
       totalETHSupply += msg.value;
