@@ -179,37 +179,37 @@ contract TokenBase is ERC20, pass, safeMath{
         blacklist[_adr]=_value;
     }   
     
-    // get the current crowdsale price
+    // check if an address is blacklisted or not
     function checkBlacklist(address _adr ) constant external onlyOwner returns(bool){
         return blacklist[_adr];
     } 
     
-    // get tarp
+    // get current tarp value of a specific address
     function getTarp(address _adr )  constant external returns(uint){
         require(_adr>0);
         return tarp[_adr];
     } 
     
-    // get tarp count
+    // get the number of infraction from a logged tarpitting address tarp count
     function getTarpcount(address _adr )  constant external returns(uint){
         require(_adr>0);
         return tarpcount[_adr];
     } 
         
     
-    // set tarpban
+    // set tarpban : change the number of infractions from a specific address
     function setTarpban(uint _value,string _password )  onlyOwner external protected(_password) returns(bool){
         require(_value<=1000);
         tarpban=_value;
         return true;
     } 
     
-    // get tarpthreshold
+    // get tarpthreshold : read the current tarpitting threshold
     function getTarpthreshold( )  constant external returns(uint){
         return tarpthreshold;
     } 
     
-    // set tarpthreshold
+    // set tarpthreshold : change the current tarpitting threshold
     function setTarpthreshold(uint _value,string _password )  onlyOwner external protected(_password) returns(bool){
         require(_value<=10 seconds);
         tarpthreshold=_value;
