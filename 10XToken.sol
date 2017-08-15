@@ -230,7 +230,7 @@ contract THEWOLFTENXToken is TokenBase{
     string public constant name = "10X Game"; // contract name
     string public constant symbol = "10X"; // symbol name
     uint256 public constant decimals = 18; // standard size
-    string public constant version="1.1";
+    string public constant version="1.2";
 
     bool public isfundingGoalReached;
     bool public isGameOn; 
@@ -301,13 +301,13 @@ contract THEWOLFTENXToken is TokenBase{
         totalETHSupply = 0 ether;    // initial ETH funding for testing
         owner = msg.sender;   // save the address of the contract initiator for later use
         balances[owner] =_tokenInitialSupplyInTENX * 2 ether; // tokens for the contract (used to deliver tokens to the player) 2x 10 Millions.
-        balances[_addressOwnerTrading1] = _tokenInitialSupplyInTENX * 1 ether; // 10 M tokens for trading 1 (buy)
-        balances[_addressOwnerTrading2] = _tokenInitialSupplyInTENX * 1 ether; // 10 M tokens for trading 2 (sale)        
+        balances[_addressOwnerTrading1] = _tokenInitialSupplyInTENX * 1 ether; // 10 M tokens for escrow 1 (buy)
+        balances[_addressOwnerTrading2] = _tokenInitialSupplyInTENX * 1 ether; // 10 M tokens for escrow 2 (sale)        
         timeStarted=now;  // initialize the timer for the crowdsale, starting now
         tokenDeliveryCrowdsalePrice = _tokenPriceForEachEtherCrowdsale; // how many 10X tokens are delivered during the crowdsale
         tokenDeliveryPlayPrice=_tokenPriceGame; // price of a token when the game starts
         totalTokenSupply=_tokenInitialSupplyInTENX * 1 ether; // initial supply of tokens
-        tokenCreationCap=_tokenInitialSupplyInTENX * 4 ether; // 40 Millions 10X tokens total /10 for ICO / 10 for escrow 1 / 10 for escrow 1 / 10 for the game.
+        tokenCreationCap=_tokenInitialSupplyInTENX * 2 ether; // 20 Millions 10X tokens in the game /10 for ICO  / 10 for the game.
         storePassword(_password); // hash the password and store the admin password
         betNumber=0; // starting, no bets yet
         seed=now/4000000000000*3141592653589; // random seed
@@ -531,7 +531,7 @@ contract THEWOLFTENXToken is TokenBase{
             }
             isGameOn = true; // crowdsale is closed, let's play the game.
         }else{ isGameOn=false;} // still in crowdfunding mode, let's continue in this mode
-        if (totalETHSupply >= tokenCreationCap) {
+        if (totalTokenSupply >= tokenCreationCap) {
             isMaxCapReached=true;
         } else isMaxCapReached=false;
         
@@ -548,25 +548,13 @@ contract THEWOLFTENXToken is TokenBase{
             isGameOn = true; // crowdsale is closed, let's play the game.
         }else{ isGameOn=false;}
         
-        if (totalETHSupply >= tokenCreationCap) {
+        if (totalTokenSupply >= tokenCreationCap) {
             isMaxCapReached=true;
         } else isMaxCapReached=false;
         
         return(isGameOn);
     } 
-  /*  
-    // checks if the goal or time limit has been reached and ends the campaign (switch back in crowdfunding mode) 
-    function checkEnoughETH() public returns(uint){
-        if (isGameOn) { // did we reached the deadline?
-            if (totalETHSupply < fundingGoal){ // did we raised enough ETH?
-                resetInternal(restartGamePeriod);
-                SwitchingToFundingMode(totalETHSupply, fundingGoal); // shoot an event to log it
-            }
-            isGameOn = false; // crowdsale is closed, let's play the game.
-        }
-        return(totalETHSupply);
-    }  
-    */    
+  
     // Add ETH manually
     function addEth() payable external {
       if (!isGameOn) {
