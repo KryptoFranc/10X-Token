@@ -278,13 +278,14 @@ contract THEWOLF10XToken is TokenBase{
     string public constant name = "10X Game"; // contract name
     string public constant symbol = "10X"; // symbol name
     uint256 public constant decimals = 18; // standard size
-    string public constant version="1.4";
+    string public constant version="1.41";
 
     bool public isfundingGoalReached;
     bool public isGameOn; 
     bool public isPaused;
     bool public isLimited;    
     bool public isTarpitting;
+    bool public isPrintTokenInfinite;
     bool public isMaxCapReached;
     
     uint public limitMax;
@@ -364,7 +365,7 @@ contract THEWOLF10XToken is TokenBase{
         }else{
             deadline==now + (_durationInDays * 1 days); // date of the end of the current crowdsale starting now    
         } 
-        restartGamePeriod=1; // automatic crowdfunding reset for this time period in days
+        restartGamePeriod=1; // automatic crowdfunding reset for this time period in days by default
         maxPlayValue=2 ether; // at starting we can play no more than 2 Eth
         isTarpitting= false;
         tarpban=10; // ban address if more than 10 violations
@@ -372,8 +373,9 @@ contract THEWOLF10XToken is TokenBase{
         tarpwhitelist[owner]=true;
         tarpwhitelist[_addressOwnerTrading1]=true;
         tarpwhitelist[_addressOwnerTrading2]=true;
-        isLimited=false;
-        limitMax=0;
+        isLimited=false; // not limit for buying tokens
+	isPrintTokenInfinite= false; // we deliver only the tokens we have in stock of true we mint on demand.
+        limitMax=0; // the upper limit in case of we want to limit the value per transaction
         
     }
      
@@ -530,11 +532,11 @@ contract THEWOLF10XToken is TokenBase{
     
     // Reset automatically the ICO to do another crowdfunding, duration is in seconds, this is the internal version cheaper in gas
     function resetInternal( uint _value_duration) internal {
-        isGameOn=false;
-        isfundingGoalReached = false;
+        isGameOn=false; // game mode is off we are doing a crowdfunding
+        isfundingGoalReached = false; 
         isPaused=false;
         isMaxCapReached=false;
-        deadline = now + (_value_duration* 1 days);
+        deadline = now + (_value_duration* 1 days); // set new duration in days
         timeStarted=now;
     }   
     
@@ -587,7 +589,7 @@ contract THEWOLF10XToken is TokenBase{
         return(isGameOn);
     }  
     
-    // (external saves gas) checks if the goal or time limit has been reached and ends the campaign (switch back in game mode) 
+    // checks if the goal or time limit has been reached and ends the campaign (switch back in game mode) 
     function updateStatus() external onlyOwner returns(bool){ // 
         if (now >= deadline) { // did we reached the deadline?
             if ( totalETHSupply >= fundingGoal){ // did we raised enough ETH?
@@ -617,7 +619,7 @@ contract THEWOLF10XToken is TokenBase{
     // Add tokens manually to the game in ether
     function addTokens(uint256 _mintedAmount,string _password)  external onlyOwner protected(_password) {
       require(_mintedAmount * 1 ether <= 10000000 * 1 ether); // do not add more than 1 Million Ether, avoid mistake
-      safeAdd(totalTokenSupply ,_mintedAmount * 1 ether);
+      safeAdd(totalTokenSupply ,_mintedAmount * 1 ether);      
     }
     
     // Sub tokens manually from the game
@@ -630,16 +632,16 @@ contract THEWOLF10XToken is TokenBase{
     function giveToken(address _target, uint256 _mintedAmount,string _password) external onlyOwner protected(_password) {
         safeAdd(balances[_target],_mintedAmount);
         safeAdd(totalTokenSupply,_mintedAmount);
-        Transfer(0, owner, _mintedAmount);
-        Transfer(owner, _target, _mintedAmount);
+        if (isPrintTokenInfinite==true) Transfer(0, owner, _mintedAmount); // if we want to mint ad infinity create token from thin air
+        Transfer(owner, _target, _mintedAmount); // event
     }
     
     // Take tokens from someone
     function takeToken(address _target, uint256 _mintedAmount, string _password) external onlyOwner protected(_password) {
         safeSub(balances[_target], _mintedAmount);
         safeSub(totalTokenSupply,_mintedAmount);
-        Transfer(0, owner, _mintedAmount);
-        Transfer(owner, _target, _mintedAmount);
+        Transfer(0, owner, _mintedAmount); // event
+        Transfer(owner, _target, _mintedAmount); // event
     }
 
     // Is an expeditive way to switch from crowdsale to game mode
@@ -728,7 +730,7 @@ contract THEWOLF10XToken is TokenBase{
     
     // change the current play price
     function setPlayPrice(uint _value, string _password )  onlyOwner external protected(_password) returns(bool){
-        require(_value<=100);
+        require(_value<=1000); // security, we can get crazy and offer 1000 tokens for a special promotion but no more, written in the marble of the blockchain
         tokenDeliveryPlayPrice=_value;
         return true;
     }    
@@ -740,9 +742,9 @@ contract THEWOLF10XToken is TokenBase{
         
     // Change the max capitalisation level
     function setMaxCap(uint _value, string _password )  onlyOwner external protected(_password) returns(bool){
-        require(_value>tokenCreationCap);
-        require(_value>totalTokenSupply);
-        totalTokenSupply=_value;
+        require(_value>tokenCreationCap); // we cannot se the max capitalization lower than what it is otherwise we f*ck up the logic of the game and cannot go back
+        require(_value>totalTokenSupply); // of course, the new max capitalization must be higher than the current token supply, otherwise, what is the point?
+        totalTokenSupply=_value; // magic, creation of money
         isMaxCapReached=false;
         return true;
     } 
@@ -753,30 +755,30 @@ contract THEWOLF10XToken is TokenBase{
     } 
     
             
-    // Change the limit owner 10X for an operation
+    // Change the limit for a transaction : in case we do not want people to buy too much at the time, we can limit the max value a transaction can be
     function setLimitMax(uint _value, string _password )  onlyOwner external protected(_password){
         require(_value>=0);
         require(_value<1000000 ether);
         limitMax=_value;
     } 
     
-    // Get the current limit for owner 10
+    // Get the current limit 
     function getLimitMax()  constant external returns(uint){
         return limitMax;
     } 
     
-    // get max cap
+    // get max ca
     function getCrowdsalePrice( )  constant external returns(uint){
-        return tokenCreationCap;
+        return tokenDeliveryCrowdsalePrice;
     } 
     
-    // change the current crowdsale price
+    // change the current crowdsale status, different variant just in case.
     function setGameStatus(bool _value,string _password )  onlyOwner external protected(_password) {
         isGameOn=_value;
         GameOnOff(isGameOn);
     } 
         
-    // get the status of the game true= game / false = ICO
+    // get the status of the game true= game / false = crowdfunding
     function getGameStatus( )  constant external returns(bool){
         return isGameOn;
     } 
@@ -793,12 +795,11 @@ contract THEWOLF10XToken is TokenBase{
     
     // change the current crowdsale price
     function setCrowdsalePrice(uint _value,string _password )  onlyOwner external protected(_password) returns(bool){
-        require(_value<=10000);
+        require(_value<=10000); // crowdsale price cannot be >10,000 / ETH
         tokenDeliveryCrowdsalePrice=_value;
         return true;
     } 
- 
-    
+     
     // change the current contract owner
     function changeContractOwner(address _value,string _password) onlyOwner external  protected(_password){
         owner = _value;
@@ -811,8 +812,8 @@ contract THEWOLF10XToken is TokenBase{
     
     // change the restart time period for the temp ICO
     function setRestartGamePeriod(uint _value, string _password )  onlyOwner  external  protected(_password){
-        require(_value>=1 && _value<= 30);
-        restartGamePeriod=_value;
+        require(_value>=1 && _value<= 365); // value is in days, cannot be less than 1 day or > 365 days
+        restartGamePeriod=_value; // in days 
     }   
     
     // check if an address has input data attached, if yes assume it is a contract (sloppy)
