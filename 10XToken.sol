@@ -337,7 +337,7 @@ contract THEWOLF10XToken is TokenBase{
         uint  _debugDurationInMinutes  )
     {
         require(_tokenPriceForEachEtherCrowdsale<=10000 && _tokenPriceForEachEtherCrowdsale>0);
-        require(_tokenInitialSupplyIn10X * 1 ether>=40000000 * 1 ether); // cannot run with less than 40 Million 10X total, safety test in case slippy finger misses a 0
+        require(_tokenInitialSupplyIn10X * 1 ether>=10000000 * 1 ether); // cannot run with less than 10x4 Million 10X total, safety test in case slippy finger misses a 0
         require(msg.sender>0); // using 0 as address is not allowed
         if (_debugDurationInMinutes>0)  _durationInDays=0;
 
@@ -394,7 +394,7 @@ contract THEWOLF10XToken is TokenBase{
         
         // check if we exceed the maximum bet possible according to the fund we have.
         if (isGameOn==true) {
-            if (playvalue>maxPlayValue) {
+            if (playValue>maxPlayValue) {
                   LogMsg(msg.sender, "This bet exceed the maximum play value, we cannot accept it, try with a lower amount.");
                   revert();
             }
