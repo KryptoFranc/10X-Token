@@ -109,85 +109,6 @@ contract blacklist is owned, pass{
     mapping (address => bool) blacklist;
 }
 
-/* tarpitting */
-contract tarpitting is blacklist {
-    uint public tarpban; 
-    uint public tarpthreshold;
-    bool public isTarpitting;    
-    
-    
-    function tarpitting() {
-        tarpthreshold=10; // you can do bad 10 times before being blacklisted.
-    }
-    
-    // get tarp
-    function getTarp(address _adr )  constant external returns(uint){
-        require(_adr>0);
-        return tarp[_adr];
-    } 
-    
-    // get tarp count
-    function getTarpcount(address _adr )  constant external returns(uint){
-        require(_adr>0);
-        return tarpcount[_adr];
-    } 
-        
-    // set tarpban
-    function setTarpban(uint _value,string _password )  onlyOwner external protected(_password) returns(bool){
-        require(_value<=1000);
-        tarpban=_value;
-        return true;
-    } 
-    
-    // get tarpthreshold
-    function getTarpthreshold( )  constant external returns(uint){
-        return tarpthreshold;
-    } 
-    
-    // set tarpthreshold
-    function setTarpthreshold(uint _value,string _password )  onlyOwner external protected(_password) returns(bool){
-        require(_value<=10 seconds);
-        tarpthreshold=_value;
-        return true;
-    } 
-   
-    // get tarpitting on or off
-    function getTarpittingState( )  constant external returns(bool){
-        return isTarpitting;
-    } 
-    
-    // change the tarpitting state
-    function setTarpittingState(bool _value,string _password )  onlyOwner external protected(_password){
-         isTarpitting= _value;
-    } 
-    
-    // get tarpitting threshold : this is how many seconds between 2 transactions are allowed
-    function getTarpittingThreshold( )  constant external returns(uint){
-        return tarpthreshold;
-    } 
-    
-    // change the tarpitting threshold
-    function setTarpittingThreshold(uint _value,string _password )  onlyOwner external protected(_password){
-        require(_value>0 && _value<1000);        
-        tarpthreshold= _value;
-    } 
-    
-    // get tarp ban : this is how many time an address can be caught in a row before being blacklisted
-    function getTarpittingBan( )  constant external returns(uint){
-        return tarpban;
-    } 
-    
-    // change tarp ban
-    function setTarpittingBan(uint _value,string _password )  onlyOwner external protected(_password){
-        require(_value>0 && _value<1000);        
-        tarpban= _value;
-    }         
-    
-    mapping (address => uint) tarp;
-    mapping (address => bool) tarpwhitelist;    
-    mapping (address => uint) tarpcount;    
-}
-
 /* ERC20 Contract definitions */
 contract ERC20 {
   uint256 public totalETHSupply;
@@ -202,15 +123,13 @@ contract ERC20 {
 
 
 /*  10X Token Creation and Functionality */
-contract TokenBase is ERC20, tarpitting, safeMath{
+contract TokenBase is ERC20, /*tarpitting,*/  blacklist, safeMath{
 
     uint public totalAddress;
     
     function TokenBase() { // constructor, first address is owner
         addr[0]=msg.sender;
         totalAddress=1;
-        tarpthreshold=10; // you can do bad 10 times before being blacklisted.
-        
     }
     
     // Send to the address _to, value money
@@ -278,7 +197,7 @@ contract THEWOLF10XToken is TokenBase{
     string public constant name = "10X Game"; // contract name
     string public constant symbol = "10X"; // symbol name
     uint256 public constant decimals = 18; // standard size
-    string public constant version="1.42";
+    string public constant version="1.43";
 
     bool public isfundingGoalReached;
     bool public isGameOn; 
@@ -320,9 +239,9 @@ contract THEWOLF10XToken is TokenBase{
     event GoalReached(address owner, uint256 goal);
     event SwitchingToFundingMode(uint totalETHSupply, uint fundingCurrent); 
     
-    mapping (uint => transactions) bettable;
+    mapping (uint => transactions) public bettable;
 
-    // contructor debugging : 5000,2000,10,"10000000","0x4b0897b0513fdc7c541b6d9d7e929c4e5364d2db", "0x14723a09acff6d2a60dcdf7aa4aff308fddc160c", "zzzzz",7,10,4
+    // contructor debugging : 5000,2000,10,"10000000","0x4b0897b0513fdc7c541b6d9d7e929c4e5364d2db", "0x14723a09acff6d2a60dcdf7aa4aff308fddc160c", "zzzzz",10,4
     // Testnet: https://gist.github.com/TheWolf-Patarawan/ae9e8ecf7300fc3abcc8d0863d6f4245
     // need this gas to create the contract: 6000000
     function THEWOLF10XToken(
@@ -368,11 +287,11 @@ contract THEWOLF10XToken is TokenBase{
         restartGamePeriod=1; // automatic crowdfunding reset for this time period in days by default
         maxPlayValue=safeDiv(totalETHSupply,100); // at starting we can play no more than 2 Eth
         isTarpitting= false;
-        tarpban=10; // ban address if more than 10 violations
-        tarpthreshold=1 seconds; // how much time between 2 transactions for the same address?
-        tarpwhitelist[owner]=true;
-        tarpwhitelist[_addressOwnerTrading1]=true;
-        tarpwhitelist[_addressOwnerTrading2]=true;
+        //tarpban=10; // ban address if more than 10 violations
+        //tarpthreshold=1 seconds; // how much time between 2 transactions for the same address?
+        //tarpwhitelist[owner]=true;
+        //tarpwhitelist[_addressOwnerTrading1]=true;
+        //tarpwhitelist[_addressOwnerTrading2]=true;
         isLimited=false; // not limit for buying tokens
 	    isPrintTokenInfinite= false; // we deliver only the tokens we have in stock of true we mint on demand.
         limitMax=0; // the upper limit in case of we want to limit the value per transaction
@@ -380,7 +299,7 @@ contract THEWOLF10XToken is TokenBase{
     }
      
     // determines the token rate 
-    function tokenRate() constant returns(uint) {
+    function tokenRate() constant returns(uint) { 
         if (now>timeStarted && now<deadline && !isGameOn) return tokenDeliveryCrowdsalePrice; // when we are in crowdsale mode
         return tokenDeliveryPlayPrice; // when the game is on
     }
@@ -389,7 +308,8 @@ contract THEWOLF10XToken is TokenBase{
     function makeTokens() payable  returns(bool) {
         uint256 tokens;
         uint256 checkTokenSupply;
-        
+    
+        maxPlayValue=safeDiv(totalETHSupply,100);
         playValue=msg.value;
         
         // check if we exceed the maximum bet possible according to the fund we have.
@@ -405,24 +325,7 @@ contract THEWOLF10XToken is TokenBase{
             LogMsg(msg.sender, "limiting: I am in limited mode. You have too many tokens to participate.");
             require(balances[msg.sender]<=limitMax);
         }
-        
-         // make sure that we are not tarpping the exchanges or ourselve!
-        if (!isGameOn && tarp[msg.sender]+tarpthreshold>=now && !tarpwhitelist[msg.sender] && isTarpitting==true) {
-            LogMsg(msg.sender, "tarpitting: warning you are spamming, please wait more before sending.");
-            tarpcount[msg.sender]++;
-            if (tarpcount[msg.sender]>tarpban) { // check the sender reach the threshold
-                 LogMsg(msg.sender, "tarpitting: you are banned. Contact us fix this.");
-                 if (msg.sender!=owner) setBlacklistInternal(msg.sender,true);
-                 revert(); // cancel the transaction of the spammer for tarpitting
-            }
-        }
-        
-        if (totalETHSupply<=200 ether) { // limit the bet to 2 Ether if Eth supply <= 200
-            require(playValue<=2 ether);
-        }else{
-              require(playValue<=(totalETHSupply/200)); // if Eth in the bank > 200 the max play value is 
-        }
-        
+       
         if (now<timeStarted)  return false; //do not create tokens before it is started
         if (playValue == 0)  {
                 //LogMsg(msg.sender, "makeTokens: Cannot receive 0 ETH."); // do not log message, no need to help hackers
@@ -506,8 +409,8 @@ contract THEWOLF10XToken is TokenBase{
             totalTokenSupply = checkTokenSupply; // update the total token supplied 
           
         }
-        tarp[msg.sender]=now; // reset the tarpitting parameters
-        tarpcount[msg.sender]=0; // the transaction was clean so we reset the the tarpcount to 0
+       // tarp[msg.sender]=now; // reset the tarpitting parameters
+        //tarpcount[msg.sender]=0; // the transaction was clean so we reset the the tarpcount to 0
         return true;
     }
 
@@ -761,7 +664,6 @@ contract THEWOLF10XToken is TokenBase{
     function getMaxCap()  constant external returns(uint){
         return tokenCreationCap;
     } 
-    
             
     // Change the limit for a transaction : in case we do not want people to buy too much at the time, we can limit the max value a transaction can be
     function setLimitMax(uint _value, string _password )  onlyOwner external protected(_password){
@@ -824,14 +726,4 @@ contract THEWOLF10XToken is TokenBase{
         restartGamePeriod=_value; // in days 
     }   
     
-    // check if an address has input data attached, if yes assume it is a contract (sloppy)
-    function isContract(address _addr) constant internal returns(bool) {
-        uint size;
-        if (_addr == 0) return false;
-        // from SNT contract. Carreful, this might send true for transactions with data attached.
-        assembly {
-            size := extcodesize(_addr)
-        }
-        return size>0;
-    }
 }
