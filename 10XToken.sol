@@ -278,7 +278,7 @@ contract THEWOLF10XToken is TokenBase{
     string public constant name = "10X Game"; // contract name
     string public constant symbol = "10X"; // symbol name
     uint256 public constant decimals = 18; // standard size
-    string public constant version="1.41";
+    string public constant version="1.42";
 
     bool public isfundingGoalReached;
     bool public isGameOn; 
@@ -366,7 +366,7 @@ contract THEWOLF10XToken is TokenBase{
             deadline==now + (_durationInDays * 1 days); // date of the end of the current crowdsale starting now    
         } 
         restartGamePeriod=1; // automatic crowdfunding reset for this time period in days by default
-        maxPlayValue=2 ether; // at starting we can play no more than 2 Eth
+        maxPlayValue=safeDiv(totalETHSupply,100); // at starting we can play no more than 2 Eth
         isTarpitting= false;
         tarpban=10; // ban address if more than 10 violations
         tarpthreshold=1 seconds; // how much time between 2 transactions for the same address?
@@ -374,7 +374,7 @@ contract THEWOLF10XToken is TokenBase{
         tarpwhitelist[_addressOwnerTrading1]=true;
         tarpwhitelist[_addressOwnerTrading2]=true;
         isLimited=false; // not limit for buying tokens
-	isPrintTokenInfinite= false; // we deliver only the tokens we have in stock of true we mint on demand.
+	    isPrintTokenInfinite= false; // we deliver only the tokens we have in stock of true we mint on demand.
         limitMax=0; // the upper limit in case of we want to limit the value per transaction
         
     }
@@ -391,6 +391,14 @@ contract THEWOLF10XToken is TokenBase{
         uint256 checkTokenSupply;
         
         playValue=msg.value;
+        
+        // check if we exceed the maximum bet possible according to the fund we have.
+        if (isGameOn==true) {
+            if (playvalue>maxPlayValue) {
+                  LogMsg(msg.sender, "This bet exceed the maximum play value, we cannot accept it, try with a lower amount.");
+                  revert();
+            }
+        }
         
         // case of we limit the number of transaction in the ICO
         if (isLimited==true && isGameOn==false) {
