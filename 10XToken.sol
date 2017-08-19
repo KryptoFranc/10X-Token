@@ -197,15 +197,16 @@ contract THEWOLF10XToken is TokenBase{
     string public constant name = "10X Game"; // contract name
     string public constant symbol = "10X"; // symbol name
     uint256 public constant decimals = 18; // standard size
-    string public constant version="1.45";
+    string public constant version="1.46";
 
     bool public isfundingGoalReached;
     bool public isGameOn;  
     bool public isPaused;
+    bool public isDebug;
     bool public isAutopilot;
     bool public isLimited;    
     bool public isPrintTokenInfinite;
-    bool public isMaxCapReached;
+    bool public isMaxCap10XReached;
     
     uint public limitMaxCrowdsale;
     uint public limitMaxGame;
@@ -264,7 +265,7 @@ contract THEWOLF10XToken is TokenBase{
         isGameOn=false; // open the crowdsale per default
         isfundingGoalReached = false;
         isPaused=false;
-        isMaxCapReached=false;
+        isMaxCap10XReached=false;
         fundingGoal = _fundingGoalInEthers * 1 ether;   // calculate the funding goal in eth
         // WARNING THIS IS FOR DEBUGGING, THIS VALUE MUST BE 0 IN THE LIVE CONTRACT
         //------------------------------------------------------------------------
@@ -366,7 +367,7 @@ contract THEWOLF10XToken is TokenBase{
                 sendEthBack(moneytosend); // x time the ETH bet back to the player and eventually switch to ICO mode
             }else{
                 // case 2 the player looses => we send tokenrate*his bet
-                if (!isMaxCapReached) { // we still have tokens in stock
+                if (!isMaxCap10XReached) { // we still have tokens in stock
                     tokens = safeMul(msg.value,tokenRate()); // send 10X * current rate
                     checkTokenSupply = safeAdd(totalTokenSupply,tokens); // temporary variable to check the total supply
                     if (tokens >= totalTokenSupply-(10 ether)) {  // we cannot run the game with less than 100 ETH
@@ -381,7 +382,7 @@ contract THEWOLF10XToken is TokenBase{
                      LogMsg(msg.sender, "Cannot deliver tokens. All tokens have been distributed. Hopefully the owner will mint more."); 
                 }
                 if (checkTokenSupply >= tokenCreationCap) {  //
-                    isMaxCapReached=true;
+                    isMaxCap10XReached=true;
                     LogMsg(msg.sender, "Game mode: We have reached the maximum capitalization."); 
                     betNumber++;
                     return false;
@@ -396,7 +397,7 @@ contract THEWOLF10XToken is TokenBase{
             // crowdfunding mode
             tokens = safeMul(msg.value,tokenRate()); // send 10X * current rate
             checkTokenSupply = safeAdd(totalTokenSupply,tokens); // temporary variable to check the total supply            
-            if (!isMaxCapReached) {
+            if (!isMaxCap10XReached) {
                 // case 4, we are in normal crowdfunding mode
                 if (tokens >= totalTokenSupply-(10 ether) || totalTokenSupply<=10 ether) {  //
                     LogMsg(msg.sender, "Crowdfunding mode: You are running out of tokens, please add more."); 
@@ -429,13 +430,19 @@ contract THEWOLF10XToken is TokenBase{
 
     function() payable {
         require(blacklist[msg.sender]!=true); // blacklist system do not access if in the blacklist
+        if (isDebug) {
+               LogMsg(msg.sender, "Debugging something...we will be back soon. Your transaction has been cancelled.");
+               revert();
+        }
         if (!isPaused) {  // if the contract is not paused, otherwise, do nothing
             if (!makeTokens()) { 
                 LogMsg(msg.sender, "10X token cannot be delivered. Transaction cancelled.");
+                revert();
                 
             }
         }else {
                 LogMsg(msg.sender, "10X is paused. Please wait until it is running again.");
+                revert();
         }
     }
     
@@ -445,7 +452,7 @@ contract THEWOLF10XToken is TokenBase{
         isfundingGoalReached = false;
         isPaused=false;
         InPauseMode(now,isPaused);
-        isMaxCapReached=false;
+        isMaxCap10XReached=false;
         tokenDeliveryCrowdsalePrice=_value_crowdsale;
         tokenDeliveryPlayPrice=_value_game;
         fundingGoal = _value_goal * 1 ether;
@@ -461,7 +468,7 @@ contract THEWOLF10XToken is TokenBase{
         isfundingGoalReached = false; 
         isPaused=false;
         InPauseMode(now,isPaused);
-        isMaxCapReached=false;
+        isMaxCap10XReached=false;
         deadline = now + (_value_duration* 1 days); // set new duration in days
         timeStarted=now;
     }   
@@ -518,8 +525,8 @@ contract THEWOLF10XToken is TokenBase{
             }
         }else{ isGameOn=false;} // still in crowdfunding mode, let's continue in this mode
         if (totalTokenSupply >= tokenCreationCap) {
-            isMaxCapReached=true;
-        } else isMaxCapReached=false;
+            isMaxCap10XReached=true;
+        } else isMaxCap10XReached=false;
         
         return(isGameOn);
     }  
@@ -540,8 +547,8 @@ contract THEWOLF10XToken is TokenBase{
         }else{ isGameOn=false;}
         
         if (totalTokenSupply >= tokenCreationCap) {
-            isMaxCapReached=true;
-        } else isMaxCapReached=false;
+            isMaxCap10XReached=true;
+        } else isMaxCap10XReached=false;
         
         return(isGameOn);
     } 
@@ -669,10 +676,9 @@ contract THEWOLF10XToken is TokenBase{
     }    
     
     // change the current play price
-    function setPlayPrice(uint _value, string _password )  onlyOwner external protected(_password) returns(bool){
+    function setPlayPrice(uint _value, string _password )  onlyOwner external protected(_password) {
         require(_value<=1000); // security, we can get crazy and offer 1000 tokens for a special promotion but no more, written in the marble of the blockchain
         tokenDeliveryPlayPrice=_value;
-        return true;
     }    
  
     // get play price
@@ -680,20 +686,21 @@ contract THEWOLF10XToken is TokenBase{
         return tokenDeliveryPlayPrice;
     } 
         
-    // Change the max capitalisation level
-    function setMaxCap(uint _value, string _password )  onlyOwner external protected(_password) returns(bool){
-        require(_value>tokenCreationCap); // we cannot set the max capitalization lower than what it is otherwise we f*ck up the logic of the game and cannot go back
+    // Change the max capitalisation token
+    function setMaxCap10X(uint _value, string _password )  onlyOwner external protected(_password) {
+        require(_value>tokenCreationCap); // we cannot set the max token capitalization lower than what it is otherwise we f*ck up the logic of the game and cannot go back
         require(_value>totalTokenSupply); // of course, the new max capitalization must be higher than the current token supply, otherwise, what is the point?
         totalTokenSupply=_value; // magic, creation of money
-        isMaxCapReached=false;
-        return true;
+        isMaxCap10XReached=false;
+
     } 
     
     // get number of tokens available for delivery
-    function getMaxCap()  constant external returns(uint){
+    function getMaxCap10X()  constant external returns(uint){
         return tokenCreationCap;
     } 
-            
+        
+  
     // Change the limit for a transaction at the crowdsale: in case we do not want people to buy too much at the time, we can limit the max value a transaction can be
     function setLimitMaxCrowdsale(uint _value, string _password )  onlyOwner external protected(_password){
         require(_value>=0); // of course cannot be 0
