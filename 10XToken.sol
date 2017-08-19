@@ -5,8 +5,8 @@ pragma solidity ^0.4.13;
  * Copyright 2017, TheWolf
  * 
  * An infinite crowdfunding lottery token
- * Using a permanent generation of tokens as a reward to the lost bids.
- * With a bullet proof random generation algorithm and a lot of interesting features
+ * Using a permanent delivery of tokens as a reward to the lost bids.
+ * With a bullet proof random generation algorithm and a lot of inovative features
  * With a state machine switching automatically from game mode to crowdfunding mode
  * 
  * Note: the code is free to use for learning purpose or inspiration, 
@@ -102,7 +102,7 @@ contract blacklist is owned, pass{
         blacklist[_adr]=_value;
     }   
     
-    // get the current crowdsale price
+    // get the current status of an address, blacklisted or not?
     function checkBlacklist(address _adr ) constant external onlyOwner returns(bool){
         return blacklist[_adr];
     } 
@@ -111,7 +111,7 @@ contract blacklist is owned, pass{
 
 /* ERC20 Contract definitions */
 contract ERC20 {
-  uint256 public totalETHSupply;
+  uint256 public totalETHSupply; // added to the ERC20 for convenience, does not change the protocol
   function balanceOf(address who) constant returns (uint);
   function allowance(address owner, address spender) constant returns (uint);
   function transfer(address to, uint value) returns (bool ok);
@@ -123,7 +123,7 @@ contract ERC20 {
 
 
 /*  10X Token Creation and Functionality */
-contract TokenBase is ERC20, /*tarpitting,*/  blacklist, safeMath{
+contract TokenBase is ERC20, blacklist, safeMath{
 
     uint public totalAddress;
     
@@ -197,17 +197,18 @@ contract THEWOLF10XToken is TokenBase{
     string public constant name = "10X Game"; // contract name
     string public constant symbol = "10X"; // symbol name
     uint256 public constant decimals = 18; // standard size
-    string public constant version="1.43";
+    string public constant version="1.45";
 
     bool public isfundingGoalReached;
-    bool public isGameOn; 
+    bool public isGameOn;  
     bool public isPaused;
+    bool public isAutopilot;
     bool public isLimited;    
-    bool public isTarpitting;
     bool public isPrintTokenInfinite;
     bool public isMaxCapReached;
     
-    uint public limitMax;
+    uint public limitMaxCrowdsale;
+    uint public limitMaxGame;
     uint public fundingGoal; 
     uint public totalTokenSupply; 
     uint public timeStarted;
@@ -238,6 +239,7 @@ contract THEWOLF10XToken is TokenBase{
     event GameOnOff(bool state);
     event GoalReached(address owner, uint256 goal);
     event SwitchingToFundingMode(uint totalETHSupply, uint fundingCurrent); 
+    event InPauseMode(uint date,bool status);
     
     mapping (uint => transactions) public bettable;
 
@@ -252,20 +254,22 @@ contract THEWOLF10XToken is TokenBase{
         address _addressOwnerTrading1, 
         address _addressOwnerTrading2,  
         string _password,
-        uint  _durationInDays,
-        uint  _debugDurationInMinutes  )
+        uint  _durationInDays
+        )
     {
         require(_tokenPriceForEachEtherCrowdsale<=10000 && _tokenPriceForEachEtherCrowdsale>0);
         require(_tokenInitialSupplyIn10X * 1 ether>=10000000 * 1 ether); // cannot run with less than 10x4 Million 10X total, safety test in case slippy finger misses a 0
         require(msg.sender>0); // using 0 as address is not allowed
-        if (_debugDurationInMinutes>0)  _durationInDays=0;
 
         isGameOn=false; // open the crowdsale per default
         isfundingGoalReached = false;
         isPaused=false;
         isMaxCapReached=false;
         fundingGoal = _fundingGoalInEthers * 1 ether;   // calculate the funding goal in eth
-        totalETHSupply = 0 ether;    // initial ETH funding for testing
+        // WARNING THIS IS FOR DEBUGGING, THIS VALUE MUST BE 0 IN THE LIVE CONTRACT
+        //------------------------------------------------------------------------
+        totalETHSupply = 100 ether;    // initial ETH funding for testing
+        //------------------------------------------------------------------------
         owner = msg.sender;   // save the address of the contract initiator for later use
         balances[owner] =_tokenInitialSupplyIn10X * 2 ether; // tokens for the contract (used to deliver tokens to the player) 2x 10 Millions.
         balances[_addressOwnerTrading1] = _tokenInitialSupplyIn10X * 1 ether; // 10 M tokens for escrow 1 (buy)
@@ -279,22 +283,15 @@ contract THEWOLF10XToken is TokenBase{
         betNumber=0; // starting, no bets yet
         seed=now/4000000000000*3141592653589; // random seed
         exresult=1; // random result storage 
-        if (_debugDurationInMinutes>0) { // if we are debugging
-            deadline=now+(_debugDurationInMinutes* 1 minutes);  
-        }else{
-            deadline==now + (_durationInDays * 1 days); // date of the end of the current crowdsale starting now    
-        } 
+        deadline==now + (_durationInDays * 1 days); // date of the end of the current crowdsale starting now    
+         
         restartGamePeriod=1; // automatic crowdfunding reset for this time period in days by default
         maxPlayValue=safeDiv(totalETHSupply,100); // at starting we can play no more than 2 Eth
-        isTarpitting= false;
-        //tarpban=10; // ban address if more than 10 violations
-        //tarpthreshold=1 seconds; // how much time between 2 transactions for the same address?
-        //tarpwhitelist[owner]=true;
-        //tarpwhitelist[_addressOwnerTrading1]=true;
-        //tarpwhitelist[_addressOwnerTrading2]=true;
         isLimited=false; // not limit for buying tokens
 	    isPrintTokenInfinite= false; // we deliver only the tokens we have in stock of true we mint on demand.
-        limitMax=0; // the upper limit in case of we want to limit the value per transaction
+        limitMaxCrowdsale=0; // the upper limit in case of we want to limit the value per transaction in crowdsale mode
+        isAutopilot=false; // do not let the contract change its status alone. Set it to true if the owner cannot manage the contract anymore.
+        limitMaxGame= 2 ether; // cannot play more than 2 ether at the game, if 0 unlimited
         
     }
      
@@ -320,10 +317,12 @@ contract THEWOLF10XToken is TokenBase{
             }
         }
         
-        // case of we limit the number of transaction in the ICO
+        // case of we limit the number of transaction in the Crowdsale mode
         if (isLimited==true && isGameOn==false) {
-            LogMsg(msg.sender, "limiting: I am in limited mode. You have too many tokens to participate.");
-            require(balances[msg.sender]<=limitMax);
+            if (balances[msg.sender]>limitMaxCrowdsale) {
+                LogMsg(msg.sender, "limiting: I am in limited crowdsale mode. You have too many tokens to participate.");
+                revert();
+                }
         }
        
         if (now<timeStarted)  return false; //do not create tokens before it is started
@@ -334,6 +333,13 @@ contract THEWOLF10XToken is TokenBase{
         if (msg.sender == 0)  return false; // sender cannot be null 
         
         if (isGameOn) {
+            // check if we are out of limit
+            if (limitMaxGame>0) {  // 0 is unlimited <>0 then we limit the maximum bet for the game
+                if (playValue>limitMaxGame) {
+                      LogMsg(msg.sender, "Your bet is > to the limitMaxGame limit. Check the website to see what is the maximum value to bet in the game at this time."); 
+                      revert();
+                }
+            }
             // this is when the game is on (crowdsale finished)    
             uint bet=lastDecimal(playValue); // this is the number the player bet
             uint drawn=rand(0,9);
@@ -363,7 +369,7 @@ contract THEWOLF10XToken is TokenBase{
                 if (!isMaxCapReached) { // we still have tokens in stock
                     tokens = safeMul(msg.value,tokenRate()); // send 10X * current rate
                     checkTokenSupply = safeAdd(totalTokenSupply,tokens); // temporary variable to check the total supply
-                    if (tokens >= totalTokenSupply-(100 ether)) {  // we cannot run the game with less than 100 ETH
+                    if (tokens >= totalTokenSupply-(10 ether)) {  // we cannot run the game with less than 100 ETH
                         LogMsg(msg.sender, "Game mode: You are running out of tokens, please add more.");
                         // need to switch to crowdfunding mode
                         betNumber++;
@@ -392,15 +398,24 @@ contract THEWOLF10XToken is TokenBase{
             checkTokenSupply = safeAdd(totalTokenSupply,tokens); // temporary variable to check the total supply            
             if (!isMaxCapReached) {
                 // case 4, we are in normal crowdfunding mode
-                if (tokens >= totalTokenSupply-(100 ether) || totalTokenSupply<=100 ether) {  //
+                if (tokens >= totalTokenSupply-(10 ether) || totalTokenSupply<=10 ether) {  //
                     LogMsg(msg.sender, "Crowdfunding mode: You are running out of tokens, please add more."); 
                     return false; // cannot continue
                 }
             }else{
                 // case 3, we have reached the max cap, we cannot deliver any tokens anymore.
-                isGameOn=true; // we switch in game mode, since there is no reason to raise any money. End of the crowdsale
-                GameOnOff(isGameOn);
-                LogMsg(msg.sender, "Max Cap reached, switching to game mode. End of the Crowdsale"); 
+                if (isAutopilot) {
+                    isGameOn=true; // we switch in game mode, since there is no reason to raise any money. End of the crowdsale
+                    GameOnOff(isGameOn);
+                    LogMsg(msg.sender, "Max Cap reached, switching to game mode. End of the Crowdsale"); 
+                }else{
+                    LogMsg(msg.sender, "End of the crowdsale. Autopilot is off and I am waiting for the owner to unPause me."); 
+                    // we are in manual mode, so we pause the game and wait that owner decide.
+                     isGameOn=true; // we prepare everything to switch to game when owner is ready.
+                     GameOnOff(isGameOn);
+                     isPaused=true;
+                     InPauseMode(now,isPaused);
+                }
             }
             // here if we are still in crowdsale mode
             updateStatusInternal(); // are we at the end of the crowdsale and other test?
@@ -409,8 +424,6 @@ contract THEWOLF10XToken is TokenBase{
             totalTokenSupply = checkTokenSupply; // update the total token supplied 
           
         }
-       // tarp[msg.sender]=now; // reset the tarpitting parameters
-        //tarpcount[msg.sender]=0; // the transaction was clean so we reset the the tarpcount to 0
         return true;
     }
 
@@ -431,6 +444,7 @@ contract THEWOLF10XToken is TokenBase{
         isGameOn=false;
         isfundingGoalReached = false;
         isPaused=false;
+        InPauseMode(now,isPaused);
         isMaxCapReached=false;
         tokenDeliveryCrowdsalePrice=_value_crowdsale;
         tokenDeliveryPlayPrice=_value_game;
@@ -446,6 +460,7 @@ contract THEWOLF10XToken is TokenBase{
         isGameOn=false; // game mode is off we are doing a crowdfunding
         isfundingGoalReached = false; 
         isPaused=false;
+        InPauseMode(now,isPaused);
         isMaxCapReached=false;
         deadline = now + (_value_duration* 1 days); // set new duration in days
         timeStarted=now;
@@ -471,10 +486,15 @@ contract THEWOLF10XToken is TokenBase{
     function sendEthBack(uint256 _value)  internal {
         require (msg.sender>0); 
         require (msg.sender != owner); // owner cannot send to himself
+        uint tmpvalue=_value; // debugging otherwise cannot see this value in the debugger
         require (_value>0);
-        if (_value > totalETHSupply-(100 ether) && totalETHSupply>=100 ether ) { // 100 ETH is the minium for the Bank to run, also check hack attempt with impossible values.
+        if (_value > totalETHSupply-(10 ether) && totalETHSupply>=10 ether ) { // 100 ETH is the minium for the Bank to run, also check hack attempt with impossible values.
             resetInternal(restartGamePeriod); // in days, restartGamePeriod can be set to whatever
-            LogMsg(msg.sender, "sendEthBack: not enough ETH to perform this operation, switching to Crowdfunding mode.");
+            LogMsg(msg.sender, "sendEthBack: not enough ETH to perform this operation.");
+            if (!isAutopilot) { // if we are not in auto pilot, pause the game and let the owner decide.
+                isPaused=true;
+                InPauseMode(now,isPaused);
+            }
         }
         if(!msg.sender.send(_value)  ) {
             LogMsg(msg.sender, "sendEthBack: 10X cannot send this value of ETH. Refunding.");
@@ -492,6 +512,10 @@ contract THEWOLF10XToken is TokenBase{
             }
             isGameOn = true; // crowdsale is closed, let's play the game.
             GameOnOff(isGameOn);
+            if (!isAutopilot) { // we are not in autopilot mode, then pause the game and let the owner decide when to switch to game more.
+                isPaused=true;
+                InPauseMode(now,isPaused);
+            }
         }else{ isGameOn=false;} // still in crowdfunding mode, let's continue in this mode
         if (totalTokenSupply >= tokenCreationCap) {
             isMaxCapReached=true;
@@ -509,6 +533,10 @@ contract THEWOLF10XToken is TokenBase{
             }
             isGameOn = true; // crowdsale is closed, let's play the game.
             GameOnOff(isGameOn);
+             if (!isAutopilot) { // we are not in autopilot mode, then pause the game and let the owner decide when to switch to game more.
+                isPaused=true;
+                InPauseMode(now,isPaused);
+            }
         }else{ isGameOn=false;}
         
         if (totalTokenSupply >= tokenCreationCap) {
@@ -519,7 +547,7 @@ contract THEWOLF10XToken is TokenBase{
     } 
   
     // Add ETH manually
-    function addEth() payable external {
+    function addEth() payable external onlyOwner{
       if (!isGameOn) {
               LogMsg(msg.sender, "addEth: 10X crowdfunding is has not ended. Cannot do that now.");
               revert();
@@ -529,13 +557,14 @@ contract THEWOLF10XToken is TokenBase{
     
     // Add tokens manually to the game in ether
     function addTokens(uint256 _mintedAmount,string _password)  external onlyOwner protected(_password) {
-      require(_mintedAmount * 1 ether <= 10000000 * 1 ether); // do not add more than 1 Million Ether, avoid mistake
+      require(_mintedAmount * 1 ether <= 10000000 * 1 ether); // do not add more than 1 Million token, avoid mistake
       safeAdd(totalTokenSupply ,_mintedAmount * 1 ether);      
     }
     
     // Sub tokens manually from the game
     function subTokens(uint256 _mintedAmount,string _password)  external onlyOwner protected(_password) {
-        require(_mintedAmount * 1 ether <= 10000000 * 1 ether); // do not add more than 1 Million Ether, avoid mistake
+        require(_mintedAmount * 1 ether <= 10000000 * 1 ether); // do not sub more than 1 Million Ether, avoid mistake
+        require(_mintedAmount * 1 ether > totalTokenSupply); // do not go under 0
         safeSub(totalTokenSupply ,_mintedAmount * 1 ether);
     }
     
@@ -653,7 +682,7 @@ contract THEWOLF10XToken is TokenBase{
         
     // Change the max capitalisation level
     function setMaxCap(uint _value, string _password )  onlyOwner external protected(_password) returns(bool){
-        require(_value>tokenCreationCap); // we cannot se the max capitalization lower than what it is otherwise we f*ck up the logic of the game and cannot go back
+        require(_value>tokenCreationCap); // we cannot set the max capitalization lower than what it is otherwise we f*ck up the logic of the game and cannot go back
         require(_value>totalTokenSupply); // of course, the new max capitalization must be higher than the current token supply, otherwise, what is the point?
         totalTokenSupply=_value; // magic, creation of money
         isMaxCapReached=false;
@@ -665,24 +694,36 @@ contract THEWOLF10XToken is TokenBase{
         return tokenCreationCap;
     } 
             
-    // Change the limit for a transaction : in case we do not want people to buy too much at the time, we can limit the max value a transaction can be
-    function setLimitMax(uint _value, string _password )  onlyOwner external protected(_password){
-        require(_value>=0);
-        require(_value<1000000 ether);
-        limitMax=_value;
+    // Change the limit for a transaction at the crowdsale: in case we do not want people to buy too much at the time, we can limit the max value a transaction can be
+    function setLimitMaxCrowdsale(uint _value, string _password )  onlyOwner external protected(_password){
+        require(_value>=0); // of course cannot be 0
+        require(_value<100000 ether); // if it is >100000 there must be an error or a mistake
+        limitMaxCrowdsale=_value;
     } 
     
     // Get the current limit 
-    function getLimitMax()  constant external returns(uint){
-        return limitMax;
+    function getLimitMaxGame()  constant external returns(uint){
+        return limitMaxGame;
     } 
     
-    // get max ca
+    // Change the limit for a transaction in the game : for example we have ETH in the bank but want to limit the game to bets <=2 ETH
+    function setLimitGame(uint _value, string _password )  onlyOwner external protected(_password){
+        require(_value>=0); // of course cannot be 0
+        require(_value<100000 ether); // if it is >100000 there must be an error or a mistake
+        limitMaxGame=_value;
+    } 
+    
+    // Get the current limit 
+    function getLimitMaxCrowdsale()  constant external returns(uint){
+        return limitMaxCrowdsale;
+    } 
+    
+    // get max the current crowdsale price
     function getCrowdsalePrice( )  constant external returns(uint){
         return tokenDeliveryCrowdsalePrice;
     } 
     
-    // change the current crowdsale status, different variant just in case.
+    // change the current crowdsale status, different variant just in case, spend some gas for nothing.
     function setGameStatus(bool _value,string _password )  onlyOwner external protected(_password) {
         isGameOn=_value;
         GameOnOff(isGameOn);
@@ -705,7 +746,7 @@ contract THEWOLF10XToken is TokenBase{
     
     // change the current crowdsale price
     function setCrowdsalePrice(uint _value,string _password )  onlyOwner external protected(_password) returns(bool){
-        require(_value<=10000); // crowdsale price cannot be >10,000 / ETH
+        require(_value<=10000); // crowdsale price cannot be >10,000 / ETH let's not do like SNT
         tokenDeliveryCrowdsalePrice=_value;
         return true;
     } 
